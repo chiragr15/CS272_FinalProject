@@ -9,12 +9,11 @@ Dependencies: highway-env >= 1.8, gymnasium.
 Register id: 'narrow-street-v0'
 
 Files:
-- this file: narrow_street_env_min.py
-- demo script: demo_narrow_street_min.py
+- this file: narrow_street.py
+- optional demo: run this file directly
 """
 from __future__ import annotations
 
-import math
 import numpy as np
 import gymnasium as gym
 
@@ -28,10 +27,10 @@ from highway_env.vehicle.behavior import IDMVehicle
 
 # Try to import a static obstacle. If unavailable, we will emulate with a zero-speed IDMVehicle.
 try:
-    from highway_env.vehicle.objects import Obstacle  # new location
+    from highway_env.vehicle.objects import Obstacle  # newer versions
 except Exception:
     try:
-        from highway_env.road.objects import Obstacle  # older location
+        from highway_env.road.objects import Obstacle  # older versions
     except Exception:
         Obstacle = None  # fallback handled later
 
@@ -41,53 +40,61 @@ class NarrowStreetEnv(HighwayEnv):
 
     Customizations kept minimal:
       - custom road (2 straight lanes)
-      - add a few parked obstacles intruding into the right lane
+      - a few parked obstacles intruding into the right lane
       - light left-lane traffic
       - tailored reward combining safety + efficiency
     """
 
     @classmethod
     def default_config(cls) -> dict:
-        """Return the default configuration for this env.
-
-        highway-env uses a class-level default_config() style in many custom envs.
-        Defining this as a classmethod ensures the base class can build self.config
-        correctly when the environment is instantiated/registered.
-        """
+        """Class-level default config merged by the base class on init."""
         cfg = super().default_config()
         cfg.update(
             {
-                "observation": {"type": "Kinematics", "features": ["x", "y", "vx", "vy", "heading"], "normalize": True, "vehicles_count": 8},
+                # Observation: keep simple and stable (no normalize)
+                "observation": {
+                    "type": "Kinematics",
+                    "features": ["x", "y", "vx", "vy", "heading"],
+                    "normalize": False,
+                    "vehicles_count": 8,
+                },
                 "action": {"type": "DiscreteMetaAction"},
                 "lanes_count": 2,
                 "vehicles_count": 4,  # only free traffic; ego + few others
-                "duration": 40,  # seconds at 15 Hz -> ~600 steps
+                "duration": 40,       # seconds; episode steps = duration * policy_frequency
                 "policy_frequency": 15,
                 "simulation_frequency": 15,
                 "screen_width": 1200,
                 "screen_height": 300,
                 "offscreen_rendering": False,
-                # rewards (weights used in _reward)
+
+                # Rewards (weights used in _reward)
                 "collision_reward": -1.0,
                 "offroad_reward": -0.5,
                 "lane_change_cost": -0.02,
-                "headway_penalty": -0.1,  # if time headway < 1.0s
-                "progress_reward": 0.04,  # small per-step speed-scaled progress
-                "parked_clear_bonus": 0.06,  # bonus for clearing a parked car zone without collision
-                # scenario controls
+                "headway_penalty": -0.1,     # if time headway < 1.0s
+                "progress_reward": 0.05,     # slightly stronger per-step speed-scaled progress
+                "parked_clear_bonus": 0.07,  # bonus for clearing a parked zone without collision
+                "goal_reward": 0.8,          # one-time bonus when reaching the end successfully
+
+                # Scenario controls
                 "road_length": 600.0,
-                "parked_count": 3,  # 2-3 parked intrusions, not too many
-                "parked_intrusion": 0.5,  # fraction of lane width the parked car intrudes
+                "parked_count": 3,       # 2-3 parked intrusions, not too many
+                "parked_intrusion": 0.5, # fraction of lane width the parked car intrudes
                 "left_lane_traffic": 4,  # light traffic vehicles
                 "seed": 42,
             }
         )
         return cfg
 
+    # ----------------------
+    # Scene construction
+    # ----------------------
     def _create_road(self) -> None:
         net = RoadNetwork()
         width = 4.0  # lane width
         length = float(self.config["road_length"])  # meters
+
         # Two parallel straight lanes: lane 0 (right), lane 1 (left)
         for i in range(2):
             y = i * width
@@ -109,12 +116,12 @@ class NarrowStreetEnv(HighwayEnv):
         n_parked = int(self.config["parked_count"]) if self.config["parked_count"] else 0
         intrusion = float(self.config["parked_intrusion"]) * width
 
-        # choose a few longitudinal positions (avoid the first/last 40m)
+        # Choose a few longitudinal positions (avoid the first/last 40m)
         xs = np.linspace(80.0, length - 80.0, max(n_parked, 1))[:n_parked]
         for x in xs:
-            # center of the right lane is y=0; we intrude from the right boundary towards center.
+            # Center of the right lane is y=0; intrude from right boundary towards center.
             lane: StraightLane = self.road.network.get_lane(("a", "b", 0))
-            # parked object near the right boundary: lateral offset negative -> towards road edge
+            # Parked object near the right boundary: lateral offset negative -> towards road edge
             lateral = -0.5 * lane.width + intrusion * 0.6  # intrude ~60% of configured intrusion
             px, py = lane.position(x, lateral)
 
@@ -137,8 +144,7 @@ class NarrowStreetEnv(HighwayEnv):
             self._parked_segments.append((x - 5.0, x + 5.0))
 
     def _create_vehicles(self) -> None:
-        # Ego in right lane, mid-speed. Create directly to avoid possible
-        # mismatches with create_random / lane id formats across highway-env versions.
+        # Ego in right lane, mid-speed. Create directly to avoid lane-id format mismatches across versions.
         lane0 = self.road.network.get_lane(("a", "b", 0))
         ego_pos = lane0.position(20.0, 0.0)
         ego_heading = lane0.heading_at(20.0)
@@ -151,11 +157,12 @@ class NarrowStreetEnv(HighwayEnv):
         n_left = int(self.config["left_lane_traffic"]) if self.config["left_lane_traffic"] else 0
         lane1 = self.road.network.get_lane(("a", "b", 1))
         for _ in range(n_left):
-            # choose a longitudinal position not too close to ego
+            # Choose a longitudinal position not too close to ego
             lon = float(60.0 + (self.config.get("road_length", 600.0) - 120.0) * self.np_random.random())
             pos = lane1.position(lon, 0.0)
             heading = lane1.heading_at(lon)
-            v = IDMVehicle(self.road, position=np.array(pos, dtype=float), heading=float(heading), speed=float(18 + 6 * self.np_random.random()))
+            v = IDMVehicle(self.road, position=np.array(pos, dtype=float), heading=float(heading),
+                           speed=float(18 + 6 * self.np_random.random()))
             v.color = (140, 140, 255)
             self.road.vehicles.append(v)
 
@@ -168,7 +175,9 @@ class NarrowStreetEnv(HighwayEnv):
             lead.color = (200, 200, 0)
             self.road.vehicles.append(lead)
 
-    # ---- Reward shaping ----
+    # ----------------------
+    # Reward & termination
+    # ----------------------
     def _reward(self, action: int) -> float:
         cfg = self.config
         ego = self.vehicle
@@ -183,12 +192,12 @@ class NarrowStreetEnv(HighwayEnv):
         # 2) Keep safe headway to lead vehicle in current lane
         lead, _ = ego.road.neighbour_vehicles(ego, ego.target_lane_index)
         if lead is not None:
-            rel_v = max(0.1, ego.speed - getattr(lead, "speed", 0.0))
             try:
                 gap = max(0.1, lead.distance_to(ego))
             except Exception:
                 # Some road objects (e.g. static obstacles) may not provide distance_to
-                gap = max(0.1, float(np.linalg.norm(np.array(getattr(lead, 'position', [0, 0])) - np.array(ego.position))))
+                gap = max(0.1, float(np.linalg.norm(np.array(getattr(lead, "position", [0, 0])) -
+                                                    np.array(ego.position))))
             t_headway = gap / max(1e-3, ego.speed)
             if t_headway < 1.0:
                 r += cfg["headway_penalty"] * (1.0 - t_headway)  # more penalty when <1.0s
@@ -207,16 +216,34 @@ class NarrowStreetEnv(HighwayEnv):
                 pass
 
         # 5) Bonus for safely clearing a parked segment (if ego passes the segment without crash)
-        x = ego.position[0]
+        x = float(ego.position[0])
         for (x0, x1) in getattr(self, "_parked_segments", []):
-            # give bonus once when just passed the segment (x within a small window beyond x1)
+            # Give bonus once when just passed the segment (x within a small window beyond x1)
             if x1 <= x <= x1 + 0.5 and not ego.crashed:
                 r += cfg["parked_clear_bonus"]
 
+        # 6) Goal reward when reaching the end safely
+        goal_x = float(cfg.get("road_length", 600.0)) - 2.0
+        if x >= goal_x and not ego.crashed:
+            r += cfg["goal_reward"]
+
         return float(r)
 
+    def _is_terminal(self) -> bool:
+        """Terminate on crash (default) OR when ego reaches the end of the road (success)."""
+        if self.vehicle and getattr(self.vehicle, "crashed", False):
+            return True
+        try:
+            x = float(self.vehicle.position[0])
+            goal_x = float(self.config.get("road_length", 600.0)) - 2.0
+            if x >= goal_x:
+                return True
+        except Exception:
+            pass
+        return False
+
     def _is_offroad(self, veh) -> bool:
-        # simple offroad heuristic: y outside both lanes by > half width
+        # Simple offroad heuristic: y outside both lanes by > half width
         try:
             y = veh.position[1]
             lane: StraightLane = self.road.network.get_lane(("a", "b", 0))
@@ -230,10 +257,12 @@ class NarrowStreetEnv(HighwayEnv):
 from gymnasium.envs.registration import register
 
 try:
+    cfg = NarrowStreetEnv.default_config()
+    max_steps = int(cfg["duration"] * cfg["policy_frequency"])  # seconds * Hz -> steps
     register(
         id="narrow-street-v0",
         entry_point=__name__ + ":NarrowStreetEnv",
-        max_episode_steps=NarrowStreetEnv.default_config()["duration"],
+        max_episode_steps=max_steps,
     )
 except gym.error.Error:
     # Already registered in this process
@@ -242,7 +271,6 @@ except gym.error.Error:
 
 # ---- Simple demo (optional quick test) ----
 if __name__ == "__main__":
-    import pygame
     import time
 
     env = gym.make("narrow-street-v0", render_mode="rgb_array")
@@ -255,9 +283,9 @@ if __name__ == "__main__":
 
     ep_r = 0.0
     try:
-        for t in range(800):
-            # tiny rule: slow down if lead vehicle too close
-            action = 0
+        for t in range(1200):
+            # Tiny heuristic: slow down if lead vehicle too close
+            action = 0  # KEEP
             ego = env.unwrapped.vehicle
             lead, _ = ego.road.neighbour_vehicles(ego, ego.target_lane_index)
             if lead is not None:
@@ -265,11 +293,12 @@ if __name__ == "__main__":
                     gap = max(0.1, lead.distance_to(ego))
                 except Exception:
                     # Some objects (e.g. static Obstacle) may not implement distance_to
-                    gap = max(0.1, float(np.linalg.norm(np.array(getattr(lead, 'position', [0,0])) - np.array(ego.position))))
+                    gap = max(0.1, float(np.linalg.norm(np.array(getattr(lead, "position", [0, 0])) -
+                                                        np.array(ego.position))))
                 if gap < 12.0:
-                    action = 4  # slower
+                    action = 4  # SLOWER
             obs, r, term, trunc, info = env.step(action)
-            ep_r += r
+            ep_r += float(r)
             env.render()
             time.sleep(1 / 30)
             if term or trunc:
