@@ -54,8 +54,11 @@ class NarrowStreetEnv(HighwayEnv):
                 # Observation: keep simple and stable (no normalize)
                 "observation": {
                     "type": "Kinematics",
-                    "features": ["x", "y", "vx", "vy", "heading"],
-                    "normalize": False,
+                    # changed: replaced heading with cosh and sinh
+                    # "features": ["x", "y", "vx", "vy", "heading"],
+                    "features": ["x","y","vx","vy","cos_h","sin_h"],
+                    # changed: normalize from false to true
+                    "normalize": True,
                     "vehicles_count": 8,
                 },
                 "action": {"type": "DiscreteMetaAction"},
@@ -274,7 +277,10 @@ if __name__ == "__main__":
     import time
 
     env = gym.make("narrow-street-v0", render_mode="rgb_array")
-    obs, info = env.reset(seed=env.unwrapped.config.get("seed", None))
+    # changed: remove seed if you want different runs
+    # obs, info = env.reset(seed=env.unwrapped.config.get("seed", None))
+    obs, info = env.reset()  
+
 
     try:
         print("Action meanings:", DiscreteMetaAction.ACTIONS)
