@@ -29,26 +29,42 @@ def load_monitor_rewards(monitor_prefix: str):
 def plot_learning_curve(
     episodes: np.ndarray,
     rewards: np.ndarray,
-    window: int = 20,
+    window: int = 500,   # big window => very smooth
     title: str = "",
     save_path: str | None = None,
 ):
+    """
+    Plot a heavily smoothed learning curve.
+
+    - rewards: 1D array of episodic returns
+    - window: number of episodes to average over
+    """
+
     def moving_average(x, w):
         if len(x) < w:
             return x
         return np.convolve(x, np.ones(w) / w, mode="valid")
 
-    ma_rewards = moving_average(rewards, window)
+    # Smooth the rewards
+    smoothed = moving_average(rewards, window)
 
-    plt.figure()
-    plt.plot(episodes[: len(ma_rewards)], ma_rewards)
-    plt.xlabel("Episode")
-    plt.ylabel("Mean Episodic Return (MA)")
-    plt.title(title)
-    plt.grid(True)
+    # Make a matching x-axis for the smoothed data
+    x = np.arange(len(smoothed))
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(x, smoothed, linewidth=2.0)
+
+    plt.xlabel("Episodes", fontsize=12)
+    plt.ylabel(f"Mean Episodic Return (window={window})", fontsize=12)
+    plt.title(title, fontsize=14)
+    plt.grid(True, alpha=0.3)
+
     if save_path:
+        print(f"[PLOT] Saving learning curve to: {save_path}")
         plt.savefig(save_path, bbox_inches="tight", dpi=200)
     plt.close()
+
+
 
 
 def make_all_learning_curves():
@@ -58,7 +74,7 @@ def make_all_learning_curves():
     plot_learning_curve(
         ep_lidar,
         rew_lidar,
-        window=20,
+        window=500,
         title="Intersection-v1 LidarObservation – Learning Curve",
         save_path="intersection_lidar_learning_curve.png",
     )
@@ -69,7 +85,7 @@ def make_all_learning_curves():
     plot_learning_curve(
         ep_gray,
         rew_gray,
-        window=20,
+        window=500,
         title="Intersection-v1 GrayscaleObservation – Learning Curve",
         save_path="intersection_gray_learning_curve.png",
     )

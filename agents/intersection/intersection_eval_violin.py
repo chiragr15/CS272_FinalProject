@@ -1,5 +1,7 @@
 # intersection_eval_violin.py
 import os
+
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"   # Fix Intel OpenMP issue on Windows
 import numpy as np
 import matplotlib.pyplot as plt
 import gymnasium as gym
