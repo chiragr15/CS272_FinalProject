@@ -21,21 +21,20 @@ def make_intersection_env(
         if obs_type == "LidarObservation":
             config["observation"] = {
                 "type": "LidarObservation",
-                "cells": 64,
-                "maximum_range": 50,
-                "normalize": True,
+                "cells": 128,
             }
 
         elif obs_type == "GrayscaleObservation":
             config["observation"] = {
                 "type": "GrayscaleObservation",
-                "weights": [0.2989, 0.5870, 0.1140],
-                "observation_shape": (84, 84),
+                "observation_shape": (128, 64),
                 "stack_size": 4,
+                "weights": [0.2989, 0.5870, 0.1140],
+                "scaling": 1.75,
             }
             config["offscreen_rendering"] = True
-            config["screen_width"] = 84
-            config["screen_height"] = 84
+            config["screen_width"] = 128
+            config["screen_height"] = 64
 
         else:
             raise ValueError(f"Unknown obs_type: {obs_type}")
