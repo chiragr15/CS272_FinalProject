@@ -59,7 +59,7 @@ def _print_recent_rewards(monitor_prefix: str, label: str, last_n: int = 10):
 
 
 def train_intersection_lidar(
-    total_timesteps: int = 200_000,
+    total_timesteps: int = 20000,
     log_dir: str = os.path.join(LOG_ROOT, "lidar"),
 ):
     print("\n========== LIDAR TRAINING START ==========\n")
@@ -120,7 +120,7 @@ def train_intersection_lidar(
 
 
 def train_intersection_gray(
-    total_timesteps: int = 200_000,
+    total_timesteps: int = 20000,
     log_dir: str = os.path.join(LOG_ROOT, "gray"),
 ):
     print("\n========== GRAYSCALE TRAINING START ==========\n")
