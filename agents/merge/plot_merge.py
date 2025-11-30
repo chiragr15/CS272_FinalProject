@@ -18,17 +18,21 @@ def plot_learning_curve(monitor_csv: str, out_png: str, title: str):
     plt.xlabel("Episodes")
     plt.ylabel("Mean Episodic Return (smoothed)")
     plt.title(title)
+    plt.subplots_adjust(top=0.95)
+
     plt.tight_layout()
     plt.savefig(out_png, dpi=200); plt.close()
 
 def plot_violin(returns_npy: str, out_png: str, title: str):
     R = np.load(returns_npy)
-    plt.figure(figsize=(4,4))
-    plt.violinplot(R, showmeans=True)
-    plt.ylabel("Episodic Return")
-    plt.title(title)
-    plt.tight_layout()
-    plt.savefig(out_png, dpi=200); plt.close()
+    fig, ax = plt.subplots(figsize=(6, 4)) 
+    ax.violinplot(R, showmeans=True)
+    ax.set_ylabel("Episodic Return")
+    ax.set_title(title, fontsize=11)
+
+    fig.tight_layout()
+    fig.savefig(out_png, dpi=200, bbox_inches="tight")
+    plt.close(fig)
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
