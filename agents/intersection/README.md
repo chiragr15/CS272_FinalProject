@@ -1,4 +1,14 @@
 # CS 272 Final Project – DRL for Intersection-v1
+## 🧩 Full Pipeline
+
+You can run all steps (train → evaluate → plot):
+
+```bash
+python run_all.py
+```
+
+---
+
 
 ## 🚗 Overview
 This project implements Deep Reinforcement Learning (DRL) agents to solve the **Intersection-v1** environment from **highway-env** using **PPO (Proximal Policy Optimization)**.  
@@ -91,16 +101,6 @@ Creates:
 
 - `intersection_lidar_learning_curve.png`
 - `intersection_gray_learning_curve.png`
-
----
-
-## 🧩 Full Pipeline (Optional)
-
-You can run all steps (train → evaluate → plot):
-
-```bash
-python run_intersection_all.py
-```
 
 ---
 
