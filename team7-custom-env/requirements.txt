@@ -1,0 +1,11 @@
+# Core environment and dependencies
+gymnasium
+highway-env
+numpy
+matplotlib
+pygame
+
+# For RL algorithms or custom agents (optional)
+#stable-baselines3>=2.3.0
+#torch>=2.2.0
+

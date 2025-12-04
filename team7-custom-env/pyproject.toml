@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "team7_custom_env"
+version = "0.1"
+description = "Team 7 custom environment derived from highway-env"
+requires-python = ">=3.8"
+dependencies = [
+    "gymnasium",
+    "highway-env",
+    "numpy",
+    "matplotlib",
+    "pygame"
+]
